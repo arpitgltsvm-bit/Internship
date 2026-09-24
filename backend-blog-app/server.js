@@ -1,45 +1,102 @@
+// backend-blog-app/server.js
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
-const path = require('path');
-
-// Import Route Files safely
-const authRoutes = require('./routes/authRoutes');
-const blogRoutes = require('./routes/blogRoutes');
 
 const app = express();
+const PORT = 5000;
 
-// Standard middleware configurations
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// 📁 Automatically serve your frontend application files from the sibling folder
-app.use(express.static(path.join(__dirname, '../blog-application')));
+// Local Database Array (No MongoDB config needed, running 100% local)
+let blogs = [
+  {
+    id: 1,
+    title: "Getting Started with React",
+    category: "Frontend",
+    content: "React is a popular JavaScript library for building user interfaces..."
+  },
+  {
+    id: 2,
+    title: "Understanding Node.js Event Loop",
+    category: "Backend",
+    content: "The event loop is what allows Node.js to perform non-blocking I/O operations..."
+  }
+];
 
-// Main API endpoints routing configurations
-app.use('/api/auth', authRoutes);
-app.use('/api/blogs', blogRoutes);
+// 1. READ ALL (with Search and Category Filter)
+app.get('/api/blogs', (req, res) => {
+  const { search, category } = req.query;
+  let filteredBlogs = [...blogs];
 
-// Database connection URL
-const dbURI = "mongodb+srv://blogadmin:ClearPassword2026@starter-dev-m0-mumbai.qyczxvh.mongodb.net/blogDB?retryWrites=true&w=majority&appName=starter-dev-m0-mumbai";
+  if (search) {
+    filteredBlogs = filteredBlogs.filter(blog => 
+      blog.title.toLowerCase().includes(search.toLowerCase()) ||
+      blog.content.toLowerCase().includes(search.toLowerCase())
+    );
+  }
 
-console.log("Attempting to establish connection to MongoDB Cloud...");
+  if (category && category !== 'All') {
+    filteredBlogs = filteredBlogs.filter(blog => blog.category === category);
+  }
 
-mongoose.connect(dbURI)
-  .then(() => {
-    console.log('=========================================');
-    console.log('🎉 SUCCESS: MongoDB Connected Successfully!');
-    console.log('=========================================');
-  })
-  .catch(err => {
-    console.log('=========================================');
-    console.log('❌ ERROR: Connection Failed!');
-    console.error(err.message);
-    console.log('=========================================');
-  });
-
-const PORT = 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server initialized smoothly on port ${PORT}`);
+  res.json(filteredBlogs);
 });
 
+// 2. CREATE (Add a new blog)
+app.post('/api/blogs', (req, res) => {
+  const { title, category, content } = req.body;
+  if (!title || !category || !content) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
+
+  const newBlog = {
+    id: Date.now(),
+    title,
+    category,
+    content
+  };
+
+  blogs.push(newBlog);
+  res.status(201).json(newBlog);
+});
+
+// 3. UPDATE (Edit an existing blog)
+app.put('/api/blogs/:id', (req, res) => {
+  const { id } = req.params;
+  const { title, category, content } = req.body;
+  
+  const blogIndex = blogs.findIndex(blog => blog.id === parseInt(id));
+  
+  if (blogIndex === -1) {
+    return res.status(404).json({ message: "Blog not found" });
+  }
+
+  blogs[blogIndex] = {
+    ...blogs[blogIndex],
+    title: title || blogs[blogIndex].title,
+    category: category || blogs[blogIndex].category,
+    content: content || blogs[blogIndex].content
+  };
+
+  res.json(blogs[blogIndex]);
+});
+
+// 4. DELETE (Remove a blog)
+app.delete('/api/blogs/:id', (req, res) => {
+  const { id } = req.params;
+  const blogIndex = blogs.findIndex(blog => blog.id === parseInt(id));
+
+  if (blogIndex === -1) {
+    return res.status(404).json({ message: "Blog not found" });
+  }
+
+  blogs.splice(blogIndex, 1);
+  res.json({ message: "Blog deleted successfully" });
+});
+
+// Start Server
+app.listen(PORT, () => {
+  console.log(`Backend server is running smoothly on http://localhost:${PORT}`);
+});
